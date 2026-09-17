@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fasting Window Tracker | AppADay 133</title>
+<meta name="description" content="A 24 hour ring that tracks your fasting and eating windows with streaks, a calendar and a full history.">
+<meta name="theme-color" content="#0E1320">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0E1320;
+    --surface: #161D2E;
+    --border: #26304A;
+    --text: #E8ECF4;
+    --muted: #8A93A8;
+    --fast: #4CC9C0;
+    --eat: #F2A65A;
+    --logged: #5A6478;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Space Grotesk", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.45;
+    padding: 0 12px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .wrap { width: 100%; max-width: 520px; }
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  header.bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 2px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  header.bar a.home {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--surface);
+  }
+  header.bar a.home:hover { color: var(--text); border-color: var(--fast); }
+  header.bar .idnum {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--fast);
+    font-weight: 700;
+  }
+  header.bar .idname { font-size: 15px; font-weight: 500; line-height: 1.15; }
+  header.bar .titles { display: flex; flex-direction: column; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card.tight { padding: 10px; }
+
+  .ringwrap { position: relative; width: 100%; }
+  .ringwrap svg { display: block; width: 100%; height: auto; }
+
+  .center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 62%;
+    text-align: center;
+    pointer-events: none;
+  }
+  .state {
+    font-size: clamp(10px, 3vw, 12px);
+    letter-spacing: 0.18em;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .state.fasting { color: var(--fast); }
+  .state.eating { color: var(--eat); }
+  .countdown {
+    font-size: clamp(26px, 9.5vw, 40px);
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 4px 0 2px;
+    letter-spacing: -0.01em;
+  }
+  .sub { font-size: clamp(11px, 3.4vw, 13px); color: var(--muted); }
+  .pct { font-size: clamp(11px, 3.4vw, 13px); color: var(--text); margin-top: 4px; font-weight: 500; }
+
+  .seg {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 5px;
+  }
+  .seg button {
+    min-height: 44px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .seg button.on { background: var(--fast); color: #0B1118; }
+  .seglabel {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  button.act {
+    width: 100%;
+    min-height: 54px;
+    border-radius: 14px;
+    border: 0;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    background: var(--fast);
+    color: #0B1118;
+    margin-top: 12px;
+  }
+  button.act.end { background: var(--eat); }
+  button.ghost {
+    width: 100%;
+    min-height: 44px;
+    margin-top: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  button.ghost:hover { color: var(--text); border-color: var(--fast); }
+
+  .editpanel { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .editpanel.hide { display: none; }
+  .editpanel label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+  input[type="datetime-local"] {
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 15px;
+  }
+  .rowbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .rowbtns button {
+    min-height: 44px;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+  }
+  .rowbtns button.primary { background: var(--fast); color: #0B1118; border-color: var(--fast); }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; }
+  .stat .n { font-size: clamp(20px, 6.4vw, 26px); font-weight: 700; line-height: 1.1; }
+  .stat .l { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; }
+
+  .calhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .calhead .m { font-size: 15px; font-weight: 700; }
+  .calhead button {
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .dow, .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .dow div { text-align: center; font-size: 10px; color: var(--muted); font-weight: 700; padding-bottom: 4px; letter-spacing: 0.06em; }
+  .cell {
+    aspect-ratio: 1 / 1;
+    min-height: 40px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: var(--bg);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: default;
+  }
+  .cell.blank { background: transparent; }
+  .cell.has { cursor: pointer; color: var(--text); }
+  .cell.done { background: rgba(76, 201, 192, 0.18); border-color: var(--fast); color: var(--fast); font-weight: 700; }
+  .cell.early { background: rgba(90, 100, 120, 0.25); border-color: var(--logged); color: var(--text); }
+  .cell.today { box-shadow: inset 0 0 0 2px var(--eat); }
+  .cell.sel { outline: 2px solid var(--text); outline-offset: -2px; }
+  .caldetail { margin-top: 10px; font-size: 13px; color: var(--muted); min-height: 20px; }
+
+  h2.sec {
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+    font-weight: 700;
+  }
+  .hist { display: flex; flex-direction: column; gap: 8px; }
+  .hrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+  }
+  .hrow .hmain { flex: 1; min-width: 0; }
+  .hrow .hd { font-size: 14px; font-weight: 700; }
+  .hrow .ht { font-size: 12px; color: var(--muted); }
+  .badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 4px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .badge.ok { background: rgba(76, 201, 192, 0.16); color: var(--fast); }
+  .badge.early { background: rgba(90, 100, 120, 0.3); color: #B6BDCC; }
+  .hbtns { display: flex; gap: 6px; }
+  .hbtns button {
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .hbtns button:hover { color: var(--text); }
+  .empty { font-size: 13px; color: var(--muted); padding: 6px 2px; }
+
+  .datarow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .datarow button {
+    min-height: 44px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .datarow button:hover { color: var(--text); }
+  .datarow button.wide { grid-column: 1 / -1; }
+  .hiddenfile { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .soundrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+  .soundrow span { font-size: 13px; color: var(--muted); }
+  .soundrow button {
+    min-height: 44px;
+    min-width: 88px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .soundrow button.on { color: var(--fast); border-color: var(--fast); }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+  footer a { color: var(--fast); text-decoration: none; display: inline-block; min-height: 44px; line-height: 44px; }
+  footer .note { max-width: 42ch; margin: 0 auto 6px; line-height: 1.5; }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 11, 18, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    z-index: 50;
+  }
+  .overlay.hide { display: none; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .modal h3 { margin: 0 0 10px; font-size: 17px; }
+  .modal .mbody { font-size: 14px; color: var(--muted); }
+  .modal .mbody label { display: block; margin: 10px 0 6px; font-size: 12px; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    background: var(--fast);
+    color: #0B1118;
+    padding: 12px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 700;
+    z-index: 60;
+    max-width: 92vw;
+    text-align: center;
+  }
+  .toast.hide { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="bar">
+    <a class="home" href="https://augustineiacopelli.github.io/appaday/">AppADay</a>
+    <div class="titles">
+      <span class="idnum">133</span>
+      <span class="idname">Fasting Window Tracker</span>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="ringwrap">
+      <svg id="ring" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Twenty four hour fasting ring">
+        <circle cx="120" cy="120" r="86" fill="none" stroke="#26304A" stroke-width="16"></circle>
+        <g id="eatArc"></g>
+        <g id="fastArc"></g>
+        <g id="ticks"></g>
+        <g id="dialLabels"></g>
+        <g id="endMarker"></g>
+        <line id="hand" x1="120" y1="120" x2="120" y2="44" stroke="#E8ECF4" stroke-width="2" stroke-linecap="round"></line>
+        <circle cx="120" cy="120" r="4.5" fill="#E8ECF4"></circle>
+      </svg>
+      <div class="center">
+        <div class="state" id="stateLabel">Ready</div>
+        <div class="countdown tabular" id="countdown">0:00:00</div>
+        <div class="sub tabular" id="subline">Pick a window and start</div>
+        <div class="pct tabular" id="pctline"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <span class="seglabel">Fasting window</span>
+    <div class="seg" id="presetSeg">
+      <button type="button" data-preset="16:8">16:8</button>
+      <button type="button" data-preset="18:6">18:6</button>
+      <button type="button" data-preset="20:4">20:4</button>
+    </div>
+    <button type="button" class="act" id="mainBtn">Start Fast</button>
+    <button type="button" class="ghost" id="editStartBtn">Edit start time</button>
+    <div class="editpanel hide" id="editPanel">
+      <label for="startInput">Actual start time</label>
+      <input type="datetime-local" id="startInput">
+      <div class="rowbtns">
+        <button type="button" class="primary" id="applyStart">Apply</button>
+        <button type="button" id="cancelStart">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="stats">
+      <div class="stat"><div class="n tabular" id="statStreak">0</div><div class="l">Current streak</div></div>
+      <div class="stat"><div class="n tabular" id="statBest">0</div><div class="l">Longest streak</div></div>
+      <div class="stat"><div class="n tabular" id="statMonth">0</div><div class="l">This month</div></div>
+    </div>
+  </section>
+
+  <section class="card tight">
+    <div class="calhead">
+      <button type="button" id="prevMonth" aria-label="Previous month">&lsaquo;</button>
+      <div class="m" id="monthLabel">Month</div>
+      <button type="button" id="nextMonth" aria-label="Next month">&rsaquo;</button>
+    </div>
+    <div class="dow">
+      <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+    </div>
+    <div class="grid" id="calGrid"></div>
+    <div class="caldetail" id="calDetail">Tap a logged day for details.</div>
+  </section>
+
+  <section class="card">
+    <h2 class="sec">History</h2>
+    <div class="hist" id="histList"></div>
+  </section>
+
+  <section class="card">
+    <h2 class="sec">Data</h2>
+    <div class="datarow">
+      <button type="button" id="exportBtn">Export JSON</button>
+      <button type="button" id="importBtn">Import JSON</button>
+      <button type="button" class="wide" id="clearBtn">Clear all data</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" class="hiddenfile">
+    <div class="soundrow">
+      <span>Completion sound</span>
+      <button type="button" id="soundBtn">Off</button>
+    </div>
+  </section>
+
+  <footer>
+    <div class="note">Informational tracking only. This app is not medical advice. Talk with a clinician before changing how you eat, especially if you are pregnant, managing diabetes, or taking medication.</div>
+    <a href="https://augustineiacopelli.github.io/appaday/">Back to AppADay</a>
+    <div>App 133</div>
+  </footer>
+
+</div>
+
+<div class="overlay hide" id="overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h3 id="modalTitle">Title</h3>
+    <div class="mbody" id="modalBody"></div>
+    <div class="rowbtns">
+      <button type="button" class="primary" id="modalConfirm">Confirm</button>
+      <button type="button" id="modalCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast hide" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var PRESETS = { "16:8": 16, "18:6": 18, "20:4": 20 };
+  var K_ACTIVE = "appaday133-active";
+  var K_HIST = "appaday133-history";
+  var K_PREFS = "appaday133-prefs";
+  var DAY_MS = 86400000;
+  var HOUR_MS = 3600000;
+  var CX = 120, CY = 120, R = 86;
+  var BASE_TITLE = document.title;
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var MONTHS = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"];
+
+  var storageOk = true;
+  var mem = {};
+
+  function readStore(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (raw === null || raw === undefined) {
+        return Object.prototype.hasOwnProperty.call(mem, key) ? mem[key] : fallback;
+      }
+      var parsed = JSON.parse(raw);
+      mem[key] = parsed;
+      return parsed;
+    } catch (e) {
+      storageOk = false;
+      return Object.prototype.hasOwnProperty.call(mem, key) ? mem[key] : fallback;
+    }
+  }
+
+  function writeStore(key, value) {
+    mem[key] = value;
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      storageOk = false;
+      return false;
+    }
+  }
+
+  var active = readStore(K_ACTIVE, null);
+  var history = readStore(K_HIST, []);
+  var prefs = readStore(K_PREFS, { preset: "16:8", soundOn: false });
+
+  if (!history || Object.prototype.toString.call(history) !== "[object Array]") { history = []; }
+  if (!prefs || typeof prefs !== "object") { prefs = { preset: "16:8", soundOn: false }; }
+  if (!PRESETS[prefs.preset]) { prefs.preset = "16:8"; }
+  prefs.soundOn = prefs.soundOn === true;
+  if (active && typeof active === "object") {
+    if (typeof active.startMs !== "number" || !isFinite(active.startMs)) { active = null; }
+  } else {
+    active = null;
+  }
+  if (active && !PRESETS[active.preset]) { active.preset = prefs.preset; }
+  if (active && typeof active.targetHours !== "number") { active.targetHours = PRESETS[active.preset]; }
+
+  var monthOffset = 0;
+  var selectedKey = null;
+  var completionAnnounced = false;
+  var lastDayKey = "";
+  var editOpen = false;
+
+  var el = {
+    stateLabel: document.getElementById("stateLabel"),
+    countdown: document.getElementById("countdown"),
+    subline: document.getElementById("subline"),
+    pctline: document.getElementById("pctline"),
+    fastArc: document.getElementById("fastArc"),
+    eatArc: document.getElementById("eatArc"),
+    ticks: document.getElementById("ticks"),
+    dialLabels: document.getElementById("dialLabels"),
+    endMarker: document.getElementById("endMarker"),
+    hand: document.getElementById("hand"),
+    presetSeg: document.getElementById("presetSeg"),
+    mainBtn: document.getElementById("mainBtn"),
+    editStartBtn: document.getElementById("editStartBtn"),
+    editPanel: document.getElementById("editPanel"),
+    startInput: document.getElementById("startInput"),
+    applyStart: document.getElementById("applyStart"),
+    cancelStart: document.getElementById("cancelStart"),
+    statStreak: document.getElementById("statStreak"),
+    statBest: document.getElementById("statBest"),
+    statMonth: document.getElementById("statMonth"),
+    monthLabel: document.getElementById("monthLabel"),
+    calGrid: document.getElementById("calGrid"),
+    calDetail: document.getElementById("calDetail"),
+    histList: document.getElementById("histList"),
+    exportBtn: document.getElementById("exportBtn"),
+    importBtn: document.getElementById("importBtn"),
+    importFile: document.getElementById("importFile"),
+    clearBtn: document.getElementById("clearBtn"),
+    soundBtn: document.getElementById("soundBtn"),
+    overlay: document.getElementById("overlay"),
+    modalTitle: document.getElementById("modalTitle"),
+    modalBody: document.getElementById("modalBody"),
+    modalConfirm: document.getElementById("modalConfirm"),
+    modalCancel: document.getElementById("modalCancel"),
+    prevMonth: document.getElementById("prevMonth"),
+    nextMonth: document.getElementById("nextMonth"),
+    toast: document.getElementById("toast")
+  };
+
+  /* ---------- geometry and formatting ---------- */
+
+  function polarPoint(cx, cy, r, deg) {
+    var rad = (deg - 90) * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+
+  function round2(n) { return Math.round(n * 100) / 100; }
+
+  function describeArc(cx, cy, r, startDeg, endDeg) {
+    var sweep = endDeg - startDeg;
+    if (sweep <= 0) { return ""; }
+    if (sweep > 359.99) { sweep = 359.99; endDeg = startDeg + sweep; }
+    var s = polarPoint(cx, cy, r, startDeg);
+    var e = polarPoint(cx, cy, r, endDeg);
+    var large = sweep > 180 ? 1 : 0;
+    return "M " + round2(s.x) + " " + round2(s.y) +
+           " A " + r + " " + r + " 0 " + large + " 1 " + round2(e.x) + " " + round2(e.y);
+  }
+
+  function dayFraction(ms) {
+    var d = new Date(ms);
+    return (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400;
+  }
+
+  function windowSegments(startMs, endMs) {
+    var out = [];
+    if (!isFinite(startMs) || !isFinite(endMs)) { return out; }
+    var dur = endMs - startMs;
+    if (dur <= 0) { return out; }
+    if (dur >= DAY_MS) { return [[0, 180], [180, 359.99]]; }
+    var sd = dayFraction(startMs) * 360;
+    var ed = sd + (dur / DAY_MS) * 360;
+    if (ed <= 360) {
+      out.push([sd, ed]);
+    } else {
+      out.push([sd, 360]);
+      out.push([0, ed - 360]);
+    }
+    var kept = [];
+    for (var i = 0; i < out.length; i++) {
+      if (out[i][1] - out[i][0] >= 0.1) { kept.push(out[i]); }
+    }
+    return kept;
+  }
+
+  function pad2(n) { return n < 10 ? "0" + n : String(n); }
+
+  function fmtClock(ms) {
+    var d = new Date(ms);
+    var h = d.getHours();
+    var ap = h >= 12 ? "PM" : "AM";
+    var h12 = h % 12;
+    if (h12 === 0) { h12 = 12; }
+    return h12 + ":" + pad2(d.getMinutes()) + " " + ap;
+  }
+
+  function fmtDuration(ms) {
+    if (!isFinite(ms) || ms < 0) { ms = 0; }
+    var total = Math.floor(ms / 1000);
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total % 3600) / 60);
+    var s = total % 60;
+    return h + ":" + pad2(m) + ":" + pad2(s);
+  }
+
+  function fmtShortDur(ms) {
+    if (!isFinite(ms) || ms < 0) { ms = 0; }
+    var total = Math.floor(ms / 60000);
+    var h = Math.floor(total / 60);
+    var m = total % 60;
+    return h + "h " + pad2(m) + "m";
+  }
+
+  function dateKey(ms) {
+    var d = new Date(ms);
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+
+  function keyToDate(key) {
+    var p = key.split("-");
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  }
+
+  function toLocalInput(ms) {
+    var d = new Date(ms);
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) +
+           "T" + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+
+  function fromLocalInput(value) {
+    if (!value) { return NaN; }
+    var parts = value.split("T");
+    if (parts.length !== 2) { return NaN; }
+    var d = parts[0].split("-");
+    var t = parts[1].split(":");
+    if (d.length !== 3 || t.length < 2) { return NaN; }
+    var dt = new Date(Number(d[0]), Number(d[1]) - 1, Number(d[2]), Number(t[0]), Number(t[1]), 0, 0);
+    var ms = dt.getTime();
+    return isFinite(ms) ? ms : NaN;
+  }
+
+  function clearChildren(node) {
+    if (!node) { return; }
+    while (node.firstChild) { node.removeChild(node.firstChild); }
+  }
+
+  function svgEl(name, attrs) {
+    var n = document.createElementNS(SVGNS, name);
+    for (var k in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, k)) { n.setAttribute(k, attrs[k]); }
+    }
+    return n;
+  }
+
+  /* ---------- derived ---------- */
+
+  function sortedHistory() {
+    var copy = history.slice();
+    copy.sort(function (a, b) { return b.startMs - a.startMs; });
+    return copy;
+  }
+
+  function completedDayKeys() {
+    var set = {};
+    for (var i = 0; i < history.length; i++) {
+      if (history[i] && history[i].completed) { set[dateKey(history[i].startMs)] = true; }
+    }
+    return set;
+  }
+
+  function computeStreak(hist) {
+    var set = {};
+    for (var i = 0; i < hist.length; i++) {
+      if (hist[i] && hist[i].completed) { set[dateKey(hist[i].startMs)] = true; }
+    }
+    var cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+    if (!set[dateKey(cursor.getTime())]) {
+      cursor.setDate(cursor.getDate() - 1);
+      if (!set[dateKey(cursor.getTime())]) { return 0; }
+    }
+    var count = 0;
+    while (set[dateKey(cursor.getTime())]) {
+      count++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return count;
+  }
+
+  function computeLongestStreak(hist) {
+    var set = {};
+    var keys = [];
+    for (var i = 0; i < hist.length; i++) {
+      if (hist[i] && hist[i].completed) {
+        var k = dateKey(hist[i].startMs);
+        if (!set[k]) { set[k] = true; keys.push(k); }
+      }
+    }
+    if (keys.length === 0) { return 0; }
+    keys.sort();
+    var best = 1;
+    var run = 1;
+    for (var j = 1; j < keys.length; j++) {
+      var prev = keyToDate(keys[j - 1]);
+      prev.setDate(prev.getDate() + 1);
+      if (dateKey(prev.getTime()) === keys[j]) { run++; } else { run = 1; }
+      if (run > best) { best = run; }
+    }
+    return best;
+  }
+
+  function monthCount() {
+    var now = new Date();
+    var y = now.getFullYear();
+    var m = now.getMonth();
+    var c = 0;
+    for (var i = 0; i < history.length; i++) {
+      var d = new Date(history[i].startMs);
+      if (d.getFullYear() === y && d.getMonth() === m && history[i].completed) { c++; }
+    }
+    return c;
+  }
+
+  function lastEntry() {
+    var best = null;
+    for (var i = 0; i < history.length; i++) {
+      if (!best || history[i].endMs > best.endMs) { best = history[i]; }
+    }
+    return best;
+  }
+
+  function eatingWindowEnd(hist, preset) {
+    var best = null;
+    for (var i = 0; i < hist.length; i++) {
+      if (!best || hist[i].endMs > best.endMs) { best = hist[i]; }
+    }
+    if (!best) { return null; }
+    var eatHours = 24 - (PRESETS[preset] || PRESETS[prefs.preset]);
+    return best.endMs + eatHours * HOUR_MS;
+  }
+
+  /* ---------- actions ---------- */
+
+  function persistActive() { writeStore(K_ACTIVE, active); }
+  function persistHistory() { writeStore(K_HIST, history); }
+  function persistPrefs() { writeStore(K_PREFS, prefs); }
+
+  function startFast() {
+    active = { startMs: Date.now(), targetHours: PRESETS[prefs.preset], preset: prefs.preset };
+    completionAnnounced = false;
+    editOpen = false;
+    persistActive();
+    render(true);
+    showToast("Fast started. Target " + active.targetHours + " hours.");
+  }
+
+  function endFast() {
+    if (!active) { return; }
+    var endMs = Date.now();
+    var target = active.targetHours * HOUR_MS;
+    var elapsed = Math.max(0, endMs - active.startMs);
+    var done = elapsed >= target;
+    history.push({
+      id: "f" + active.startMs + "-" + Math.floor(Math.random() * 100000),
+      startMs: active.startMs,
+      endMs: endMs,
+      targetHours: active.targetHours,
+      completed: done
+    });
+    active = null;
+    completionAnnounced = false;
+    editOpen = false;
+    document.title = BASE_TITLE;
+    persistHistory();
+    persistActive();
+    render(true);
+    showToast(done ? "Logged " + fmtShortDur(elapsed) + ". Target reached." :
+                     "Logged " + fmtShortDur(elapsed) + ". Eating window open.");
+  }
+
+  function applyEditedStart(newMs) {
+    if (!active || !isFinite(newMs)) { return; }
+    var now = Date.now();
+    if (newMs > now) { newMs = now; }
+    if (newMs < now - 48 * HOUR_MS) { newMs = now - 48 * HOUR_MS; }
+    active.startMs = newMs;
+    completionAnnounced = false;
+    editOpen = false;
+    persistActive();
+    render(true);
+    showToast("Start time set to " + fmtClock(newMs) + ".");
+  }
+
+  function setPreset(key) {
+    if (!PRESETS[key]) { return; }
+    prefs.preset = key;
+    persistPrefs();
+    if (active) {
+      active.preset = key;
+      active.targetHours = PRESETS[key];
+      completionAnnounced = false;
+      persistActive();
+    }
+    render(true);
+  }
+
+  function deleteEntry(id) {
+    var out = [];
+    for (var i = 0; i < history.length; i++) {
+      if (history[i].id !== id) { out.push(history[i]); }
+    }
+    history = out;
+    persistHistory();
+    selectedKey = null;
+    render(true);
+    showToast("Entry removed.");
+  }
+
+  function editEntry(id, startMs, endMs) {
+    for (var i = 0; i < history.length; i++) {
+      if (history[i].id === id) {
+        if (!isFinite(startMs) || !isFinite(endMs) || endMs <= startMs) {
+          showToast("End time must come after start time.");
+          return false;
+        }
+        history[i].startMs = startMs;
+        history[i].endMs = endMs;
+        history[i].completed = (endMs - startMs) >= history[i].targetHours * HOUR_MS;
+        persistHistory();
+        render(true);
+        showToast("Entry updated.");
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function clearAll() {
+    history = [];
+    active = null;
+    selectedKey = null;
+    completionAnnounced = false;
+    document.title = BASE_TITLE;
+    persistHistory();
+    persistActive();
+    render(true);
+    showToast("All data cleared.");
+  }
+
+  function exportJson() {
+    var payload = {
+      app: "AppADay 133 Fasting Window Tracker",
+      exported: new Date().toISOString(),
+      prefs: prefs,
+      active: active,
+      history: sortedHistory()
+    };
+    var text = JSON.stringify(payload, null, 2);
+    try {
+      var blob = new Blob([text], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "appaday-133-fasting-" + dateKey(Date.now()) + ".json";
+      document.body.appendChild(a);
+      a.click();
+      if (a.parentNode) { a.parentNode.removeChild(a); }
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+      showToast("Export downloaded.");
+    } catch (e) {
+      showModal("Export", text, "Close", null);
+    }
+  }
+
+  function sanitizeEntry(raw) {
+    if (!raw || typeof raw !== "object") { return null; }
+    var s = Number(raw.startMs);
+    var e = Number(raw.endMs);
+    if (!isFinite(s) || !isFinite(e) || e <= s) { return null; }
+    if (s < 0 || e > Date.now() + DAY_MS) { return null; }
+    var t = Number(raw.targetHours);
+    if (!isFinite(t) || t <= 0 || t > 24) { t = PRESETS[prefs.preset]; }
+    var id = (typeof raw.id === "string" && raw.id) ? raw.id :
+             ("f" + s + "-" + Math.floor(Math.random() * 100000));
+    return {
+      id: id,
+      startMs: s,
+      endMs: e,
+      targetHours: t,
+      completed: (e - s) >= t * HOUR_MS
+    };
+  }
+
+  function mergeImported(entries) {
+    var seen = {};
+    var ids = {};
+    var i;
+    for (i = 0; i < history.length; i++) {
+      seen[history[i].startMs + ":" + history[i].endMs] = true;
+      ids[history[i].id] = true;
+    }
+    var added = 0, skipped = 0;
+    for (i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      var sig = e.startMs + ":" + e.endMs;
+      if (seen[sig]) { skipped++; continue; }
+      while (ids[e.id]) { e.id = e.id + "x"; }
+      seen[sig] = true;
+      ids[e.id] = true;
+      history.push(e);
+      added++;
+    }
+    return { added: added, skipped: skipped };
+  }
+
+  function importPayload(text) {
+    var data;
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      showToast("That file is not valid JSON.");
+      return;
+    }
+    var rawList = null;
+    if (data && Object.prototype.toString.call(data) === "[object Array]") {
+      rawList = data;
+    } else if (data && Object.prototype.toString.call(data.history) === "[object Array]") {
+      rawList = data.history;
+    }
+    if (!rawList) {
+      showToast("No fasting history found in that file.");
+      return;
+    }
+    var clean = [];
+    var rejected = 0;
+    for (var i = 0; i < rawList.length; i++) {
+      var entry = sanitizeEntry(rawList[i]);
+      if (entry) { clean.push(entry); } else { rejected++; }
+    }
+    if (clean.length === 0) {
+      showToast("Nothing importable in that file.");
+      return;
+    }
+    var incomingPreset = (data && data.prefs && PRESETS[data.prefs.preset]) ? data.prefs.preset : null;
+    showModal("Import " + clean.length + " entries?",
+      "These get merged into your existing history. Anything with a matching start and end time is skipped, so importing the same backup twice is safe. Nothing already logged is deleted.",
+      "Merge", function () {
+        hideModal();
+        var result = mergeImported(clean);
+        if (incomingPreset && !active) {
+          prefs.preset = incomingPreset;
+          persistPrefs();
+        }
+        persistHistory();
+        selectedKey = null;
+        render(true);
+        var msg = "Added " + result.added + " entries";
+        if (result.skipped) { msg += ", skipped " + result.skipped + " duplicates"; }
+        if (rejected) { msg += ", ignored " + rejected + " bad rows"; }
+        showToast(msg + ".");
+      });
+  }
+
+  function importJson(file) {
+    if (!file) { return; }
+    if (typeof FileReader === "undefined") {
+      showToast("This browser cannot read files.");
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () { importPayload(String(reader.result)); };
+    reader.onerror = function () { showToast("Could not read that file."); };
+    reader.readAsText(file);
+  }
+
+  /* ---------- sound ---------- */
+
+  function beep() {
+    if (!prefs.soundOn) { return; }
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) { return; }
+      var ctx = new Ctx();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 660;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+      setTimeout(function () { try { ctx.close(); } catch (e2) {} }, 900);
+    } catch (e) { /* silent */ }
+  }
+
+  /* ---------- modal and toast ---------- */
+
+  var modalHandler = null;
+
+  function showModal(title, body, confirmLabel, onConfirm) {
+    el.modalTitle.textContent = title;
+    clearChildren(el.modalBody);
+    if (typeof body === "string") {
+      var p = document.createElement("div");
+      p.textContent = body;
+      el.modalBody.appendChild(p);
+    } else if (body) {
+      el.modalBody.appendChild(body);
+    }
+    el.modalConfirm.textContent = confirmLabel || "OK";
+    modalHandler = onConfirm || null;
+    el.modalCancel.textContent = onConfirm ? "Cancel" : "Close";
+    el.overlay.classList.remove("hide");
+  }
+
+  function hideModal() {
+    el.overlay.classList.add("hide");
+    modalHandler = null;
+    clearChildren(el.modalBody);
+  }
+
+  var toastTimer = null;
+
+  function showToast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.remove("hide");
+    if (toastTimer) { clearTimeout(toastTimer); }
+    toastTimer = setTimeout(function () { el.toast.classList.add("hide"); }, 2800);
+  }
+
+  /* ---------- static dial ---------- */
+
+  function buildDial() {
+    clearChildren(el.ticks);
+    clearChildren(el.dialLabels);
+    for (var h = 0; h < 24; h++) {
+      var deg = h * 15;
+      var major = (h % 6 === 0);
+      var outer = 102;
+      var inner = major ? 94 : 98;
+      var a = polarPoint(CX, CY, inner, deg);
+      var b = polarPoint(CX, CY, outer, deg);
+      el.ticks.appendChild(svgEl("line", {
+        x1: round2(a.x), y1: round2(a.y), x2: round2(b.x), y2: round2(b.y),
+        stroke: major ? "#8A93A8" : "#26304A",
+        "stroke-width": major ? 2.4 : 1.2,
+        "stroke-linecap": "round"
+      }));
+    }
+    var labels = [[0, "12a"], [90, "6a"], [180, "12p"], [270, "6p"]];
+    for (var i = 0; i < labels.length; i++) {
+      var p = polarPoint(CX, CY, 113, labels[i][0]);
+      var t = svgEl("text", {
+        x: round2(p.x), y: round2(p.y),
+        fill: "#8A93A8",
+        "font-size": "10",
+        "font-family": "Space Grotesk, sans-serif",
+        "font-weight": "700",
+        "text-anchor": "middle",
+        "dominant-baseline": "central"
+      });
+      t.textContent = labels[i][1];
+      el.dialLabels.appendChild(t);
+    }
+  }
+
+  /* ---------- render ---------- */
+
+  function currentState() {
+    var now = Date.now();
+    if (active) {
+      var target = active.targetHours * HOUR_MS;
+      var elapsed = Math.max(0, now - active.startMs);
+      return {
+        mode: elapsed >= target ? "over" : "fasting",
+        now: now,
+        elapsed: elapsed,
+        target: target,
+        projEnd: active.startMs + target
+      };
+    }
+    var eatEnd = eatingWindowEnd(history, prefs.preset);
+    if (eatEnd && now < eatEnd) {
+      var last = lastEntry();
+      return { mode: "eating", now: now, eatStart: last.endMs, eatEnd: eatEnd };
+    }
+    return { mode: "ready", now: now };
+  }
+
+  function drawArcSegments(group, startMs, endMs, color, width, opacity, cap) {
+    var segs = windowSegments(startMs, endMs);
+    for (var i = 0; i < segs.length; i++) {
+      var d = describeArc(CX, CY, R, segs[i][0], segs[i][1]);
+      if (!d) { continue; }
+      group.appendChild(svgEl("path", {
+        d: d,
+        fill: "none",
+        stroke: color,
+        "stroke-width": width,
+        "stroke-opacity": opacity,
+        "stroke-linecap": cap || "butt"
+      }));
+    }
+  }
+
+  function renderRing(st) {
+    clearChildren(el.fastArc);
+    clearChildren(el.eatArc);
+    clearChildren(el.endMarker);
+
+    if (active) {
+      drawArcSegments(el.fastArc, active.startMs, st.projEnd, "#4CC9C0", 16, 0.18, "butt");
+      var tip = Math.min(st.now, st.projEnd);
+      drawArcSegments(el.fastArc, active.startMs, tip, "#4CC9C0", 16, 1, "round");
+      var eatHours = 24 - active.targetHours;
+      drawArcSegments(el.eatArc, st.projEnd, st.projEnd + eatHours * HOUR_MS, "#F2A65A", 16, 0.16, "butt");
+      var mp = polarPoint(CX, CY, R, dayFraction(st.projEnd) * 360);
+      el.endMarker.appendChild(svgEl("circle", {
+        cx: round2(mp.x), cy: round2(mp.y), r: 6,
+        fill: "#0E1320", stroke: "#F2A65A", "stroke-width": 3
+      }));
+    } else if (st.mode === "eating") {
+      drawArcSegments(el.eatArc, st.eatStart, st.eatEnd, "#F2A65A", 16, 0.9, "round");
+      var ep = polarPoint(CX, CY, R, dayFraction(st.eatEnd) * 360);
+      el.endMarker.appendChild(svgEl("circle", {
+        cx: round2(ep.x), cy: round2(ep.y), r: 6,
+        fill: "#0E1320", stroke: "#4CC9C0", "stroke-width": 3
+      }));
+    }
+
+    var handDeg = dayFraction(st.now) * 360;
+    var hp = polarPoint(CX, CY, 76, handDeg);
+    el.hand.setAttribute("x2", round2(hp.x));
+    el.hand.setAttribute("y2", round2(hp.y));
+  }
+
+  function renderCenter(st) {
+    el.stateLabel.classList.remove("fasting", "eating");
+    if (st.mode === "fasting" || st.mode === "over") {
+      el.stateLabel.classList.add("fasting");
+      if (st.mode === "fasting") {
+        el.stateLabel.textContent = "Fasting";
+        el.countdown.textContent = fmtDuration(st.target - st.elapsed);
+        el.subline.textContent = "Ends " + fmtClock(st.projEnd);
+        el.pctline.textContent = Math.min(100, Math.floor((st.elapsed / st.target) * 100)) + "% complete";
+      } else {
+        el.stateLabel.textContent = "Target reached";
+        el.countdown.textContent = fmtDuration(st.elapsed - st.target);
+        el.subline.textContent = "Past " + active.targetHours + "h since " + fmtClock(active.startMs);
+        el.pctline.textContent = "100% complete";
+      }
+    } else if (st.mode === "eating") {
+      el.stateLabel.classList.add("eating");
+      el.stateLabel.textContent = "Eating window";
+      el.countdown.textContent = fmtDuration(st.eatEnd - st.now);
+      el.subline.textContent = "Closes " + fmtClock(st.eatEnd);
+      var span = st.eatEnd - st.eatStart;
+      var gone = st.now - st.eatStart;
+      el.pctline.textContent = Math.max(0, Math.min(100, Math.floor((gone / span) * 100))) + "% elapsed";
+    } else {
+      el.stateLabel.textContent = "Ready";
+      el.countdown.textContent = "0:00:00";
+      el.subline.textContent = prefs.preset + " selected";
+      el.pctline.textContent = storageOk ? "" : "Saving is off in this browser";
+    }
+  }
+
+  function renderControls() {
+    var btns = el.presetSeg.getElementsByTagName("button");
+    for (var i = 0; i < btns.length; i++) {
+      if (btns[i].getAttribute("data-preset") === prefs.preset) {
+        btns[i].classList.add("on");
+      } else {
+        btns[i].classList.remove("on");
+      }
+    }
+    if (active) {
+      el.mainBtn.textContent = "End Fast";
+      el.mainBtn.classList.add("end");
+      el.editStartBtn.style.display = "block";
+    } else {
+      el.mainBtn.textContent = "Start Fast";
+      el.mainBtn.classList.remove("end");
+      el.editStartBtn.style.display = "none";
+      editOpen = false;
+    }
+    if (editOpen) {
+      el.editPanel.classList.remove("hide");
+    } else {
+      el.editPanel.classList.add("hide");
+    }
+    el.soundBtn.textContent = prefs.soundOn ? "On" : "Off";
+    if (prefs.soundOn) { el.soundBtn.classList.add("on"); } else { el.soundBtn.classList.remove("on"); }
+  }
+
+  function renderStats() {
+    el.statStreak.textContent = String(computeStreak(history));
+    el.statBest.textContent = String(computeLongestStreak(history));
+    el.statMonth.textContent = String(monthCount());
+  }
+
+  function dayIndex() {
+    var map = {};
+    for (var i = 0; i < history.length; i++) {
+      var k = dateKey(history[i].startMs);
+      if (!map[k]) { map[k] = []; }
+      map[k].push(history[i]);
+    }
+    return map;
+  }
+
+  function renderCalendar(offset) {
+    clearChildren(el.calGrid);
+    var base = new Date();
+    base.setDate(1);
+    base.setHours(0, 0, 0, 0);
+    base.setMonth(base.getMonth() + offset);
+    var year = base.getFullYear();
+    var month = base.getMonth();
+    el.monthLabel.textContent = MONTHS[month] + " " + year;
+
+    var firstDow = base.getDay();
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var map = dayIndex();
+    var todayKey = dateKey(Date.now());
+
+    var i, cell;
+    for (i = 0; i < firstDow; i++) {
+      cell = document.createElement("div");
+      cell.className = "cell blank";
+      el.calGrid.appendChild(cell);
+    }
+    for (i = 1; i <= daysInMonth; i++) {
+      var key = year + "-" + pad2(month + 1) + "-" + pad2(i);
+      var entries = map[key];
+      cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "cell";
+      cell.textContent = String(i);
+      if (key === todayKey) { cell.classList.add("today"); }
+      if (entries && entries.length) {
+        cell.classList.add("has");
+        var anyDone = false;
+        for (var j = 0; j < entries.length; j++) { if (entries[j].completed) { anyDone = true; } }
+        cell.classList.add(anyDone ? "done" : "early");
+        cell.setAttribute("data-key", key);
+        if (key === selectedKey) { cell.classList.add("sel"); }
+      } else {
+        cell.disabled = true;
+      }
+      el.calGrid.appendChild(cell);
+    }
+    renderCalDetail(map);
+  }
+
+  function renderCalDetail(map) {
+    if (!selectedKey || !map[selectedKey]) {
+      el.calDetail.textContent = history.length ? "Tap a logged day for details." :
+        "No fasts logged yet. Your first one will appear here.";
+      return;
+    }
+    var entries = map[selectedKey].slice();
+    entries.sort(function (a, b) { return a.startMs - b.startMs; });
+    var parts = [];
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      parts.push(fmtShortDur(e.endMs - e.startMs) + " of " + e.targetHours + "h, " +
+                 fmtClock(e.startMs) + " to " + fmtClock(e.endMs) +
+                 (e.completed ? ", complete" : ", ended early"));
+    }
+    var d = keyToDate(selectedKey);
+    el.calDetail.textContent = MONTHS[d.getMonth()] + " " + d.getDate() + ": " + parts.join(" | ");
+  }
+
+  function renderHistory() {
+    clearChildren(el.histList);
+    var list = sortedHistory();
+    if (list.length === 0) {
+      var p = document.createElement("div");
+      p.className = "empty";
+      p.textContent = "Nothing logged yet. Start a fast and it will show up here.";
+      el.histList.appendChild(p);
+      return;
+    }
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      var row = document.createElement("div");
+      row.className = "hrow";
+
+      var main = document.createElement("div");
+      main.className = "hmain";
+      var d = new Date(e.startMs);
+      var dl = document.createElement("div");
+      dl.className = "hd tabular";
+      dl.textContent = MONTHS[d.getMonth()].slice(0, 3) + " " + d.getDate() + ", " +
+                       fmtShortDur(e.endMs - e.startMs) + " of " + e.targetHours + "h";
+      var tl = document.createElement("div");
+      tl.className = "ht tabular";
+      tl.textContent = fmtClock(e.startMs) + " to " + fmtClock(e.endMs);
+      main.appendChild(dl);
+      main.appendChild(tl);
+
+      var badge = document.createElement("span");
+      badge.className = "badge " + (e.completed ? "ok" : "early");
+      badge.textContent = e.completed ? "Complete" : "Early";
+
+      var btns = document.createElement("div");
+      btns.className = "hbtns";
+      var edit = document.createElement("button");
+      edit.type = "button";
+      edit.textContent = "Edit";
+      edit.setAttribute("data-edit", e.id);
+      var del = document.createElement("button");
+      del.type = "button";
+      del.textContent = "Del";
+      del.setAttribute("data-del", e.id);
+      btns.appendChild(edit);
+      btns.appendChild(del);
+
+      row.appendChild(main);
+      row.appendChild(badge);
+      row.appendChild(btns);
+      el.histList.appendChild(row);
+    }
+  }
+
+  function render(full) {
+    var st = currentState();
+    renderRing(st);
+    renderCenter(st);
+    renderControls();
+
+    var todayKey = dateKey(st.now);
+    var rollover = todayKey !== lastDayKey;
+    lastDayKey = todayKey;
+
+    if (full || rollover) {
+      renderStats();
+      renderCalendar(monthOffset);
+      renderHistory();
+    }
+
+    if (st.mode === "over" && !completionAnnounced) {
+      completionAnnounced = true;
+      showToast("Target reached. End the fast when you are ready.");
+      beep();
+      if (document.hidden) { document.title = "Fast complete | AppADay 133"; }
+    }
+    if (st.mode === "over" && document.hidden) {
+      document.title = "Fast complete | AppADay 133";
+    }
+  }
+
+  /* ---------- events ---------- */
+
+  el.presetSeg.addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (t && t.getAttribute && t.getAttribute("data-preset")) {
+      setPreset(t.getAttribute("data-preset"));
+    }
+  });
+
+  el.mainBtn.addEventListener("click", function () {
+    if (active) {
+      var elapsed = Date.now() - active.startMs;
+      if (elapsed < active.targetHours * HOUR_MS) {
+        showModal("End this fast early?",
+          "You are at " + fmtShortDur(elapsed) + " of " + active.targetHours + " hours. " +
+          "It will be logged as an early end and still saved to your history.",
+          "End fast", function () { hideModal(); endFast(); });
+      } else {
+        endFast();
+      }
+    } else {
+      startFast();
+    }
+  });
+
+  el.editStartBtn.addEventListener("click", function () {
+    if (!active) { return; }
+    editOpen = !editOpen;
+    if (editOpen) { el.startInput.value = toLocalInput(active.startMs); }
+    renderControls();
+  });
+
+  el.applyStart.addEventListener("click", function () {
+    var ms = fromLocalInput(el.startInput.value);
+    if (!isFinite(ms)) { showToast("Enter a valid date and time."); return; }
+    applyEditedStart(ms);
+  });
+
+  el.cancelStart.addEventListener("click", function () {
+    editOpen = false;
+    renderControls();
+  });
+
+  el.prevMonth.addEventListener("click", function () {
+    monthOffset--;
+    selectedKey = null;
+    renderCalendar(monthOffset);
+  });
+
+  el.nextMonth.addEventListener("click", function () {
+    monthOffset++;
+    selectedKey = null;
+    renderCalendar(monthOffset);
+  });
+
+  el.calGrid.addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (!t || !t.getAttribute) { return; }
+    var key = t.getAttribute("data-key");
+    if (!key) { return; }
+    selectedKey = (selectedKey === key) ? null : key;
+    renderCalendar(monthOffset);
+  });
+
+  el.histList.addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (!t || !t.getAttribute) { return; }
+    var delId = t.getAttribute("data-del");
+    var editId = t.getAttribute("data-edit");
+    if (delId) {
+      showModal("Delete this entry?", "This removes the fast from your history and from your streak math.",
+        "Delete", function () { hideModal(); deleteEntry(delId); });
+      return;
+    }
+    if (editId) { openEditEntry(editId); }
+  });
+
+  function openEditEntry(id) {
+    var entry = null;
+    for (var i = 0; i < history.length; i++) { if (history[i].id === id) { entry = history[i]; } }
+    if (!entry) { return; }
+    var box = document.createElement("div");
+    var l1 = document.createElement("label");
+    l1.textContent = "Start";
+    var i1 = document.createElement("input");
+    i1.type = "datetime-local";
+    i1.value = toLocalInput(entry.startMs);
+    var l2 = document.createElement("label");
+    l2.textContent = "End";
+    var i2 = document.createElement("input");
+    i2.type = "datetime-local";
+    i2.value = toLocalInput(entry.endMs);
+    box.appendChild(l1);
+    box.appendChild(i1);
+    box.appendChild(l2);
+    box.appendChild(i2);
+    showModal("Edit entry", box, "Save", function () {
+      var s = fromLocalInput(i1.value);
+      var e = fromLocalInput(i2.value);
+      if (editEntry(id, s, e)) { hideModal(); }
+    });
+  }
+
+  el.modalConfirm.addEventListener("click", function () {
+    if (modalHandler) { modalHandler(); } else { hideModal(); }
+  });
+  el.modalCancel.addEventListener("click", hideModal);
+  el.overlay.addEventListener("click", function (ev) {
+    if (ev.target === el.overlay) { hideModal(); }
+  });
+
+  el.exportBtn.addEventListener("click", exportJson);
+
+  el.importBtn.addEventListener("click", function () {
+    el.importFile.value = "";
+    el.importFile.click();
+  });
+
+  el.importFile.addEventListener("change", function () {
+    if (el.importFile.files && el.importFile.files.length) {
+      importJson(el.importFile.files[0]);
+    }
+  });
+
+  el.clearBtn.addEventListener("click", function () {
+    showModal("Clear all data?", "This deletes every logged fast, your streaks and any fast in progress. It cannot be undone.",
+      "Clear everything", function () { hideModal(); clearAll(); });
+  });
+
+  el.soundBtn.addEventListener("click", function () {
+    prefs.soundOn = !prefs.soundOn;
+    persistPrefs();
+    renderControls();
+    if (prefs.soundOn) { beep(); }
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) {
+      document.title = BASE_TITLE;
+      render(true);
+    }
+  });
+  window.addEventListener("pageshow", function () { render(true); });
+  window.addEventListener("focus", function () {
+    document.title = BASE_TITLE;
+    render(true);
+  });
+
+  /* ---------- boot ---------- */
+
+  buildDial();
+  if (active) {
+    var el0 = Date.now() - active.startMs;
+    if (el0 >= active.targetHours * HOUR_MS) { completionAnnounced = true; }
+  }
+  render(true);
+  setInterval(function () { render(false); }, 1000);
+
+  if (!storageOk) {
+    showToast("Saving is blocked in this browser. Data lasts for this session only.");
+  }
+})();
+</script>
+</body>
+</html>
